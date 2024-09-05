@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Крестики-нолики</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body>
+  <div id="app" class="container mx-auto text-center">
+    <h1>Крестики-нолики</h1>
+
+    <div class="relative rounded-xl overflow-auto p-8">
+      <div
+        class="grid grid-cols-3 gap-4 font-mono text-white text-sm text-center font-bold leading-6 bg-stripes-fuchsia rounded-lg w-80 mx-auto">
+
+        <div class="p-4 rounded-lg shadow-lg bg-indigo-900 w-24 h-24 flex justify-center items-center"
+          v-for="(cell, index) in board" :key="index" @click="cellClicked(index)" class="cell">
+          {{cell}}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Информация о ходе игры -->
+    <div class="m-5">
+      <p>{{gameStatus}}</p>
+    </div>
+
+    <!-- Управление режимами игры -->
+    <div class="mt-5">
+      <button @click="resetGame">Начать заново</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://unpkg.com/rxjs@7/dist/bundles/rxjs.umd.min.js"></script>
+  <script>
+    const {createApp, ref} = Vue;
+    const {fromEvent, Subject} = rxjs;
+    const {takeUntil} = rxjs.operators;
+
+    createApp({
+      setup() {
+        const board = ref(Array(9).fill(''));
+        const currentPlayer = ref('X');
+        const gameStatus = ref('Ваш  ход: Х');
+        const isGameOver = ref(false);
+        const resetSubject = new Subject();
+
+        // Стрим кликов на игровом поле
+        const cellClick$ = new Subject();
+        const makeMove = (index) => {
+          if (board.value[index] === '' && !isGameOver.value) {
+            board.value[index] = currentPlayer.value;
+            if (checkWinner()) {
+              gameStatus.value = `Победил ${currentPlayer.value}`;
+              isGameOver.value = true;
+            } else if (board.value.every(cell => cell !== '')) {
+              gameStatus.value = 'Ничья!';
+              isGameOver.value = true;
+            } else {
+              currentPlayer.value = currentPlayer.value === 'X' ? 'O' : 'X';
+              gameStatus.value = `Ваш ход: ${currentPlayer.value}`;
+            }
+          }
+        }
+
+        const checkWinner = () => {
+          const winPatterns = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6],
+          ];
+
+          return winPatterns.some(pattern =>
+            board.value[pattern[0]] &&
+            board.value[pattern[0]] === board.value[pattern[1]] &&
+            board.value[pattern[1]] === board.value[pattern[2]]
+          );
+        }
+
+        const resetGame = () => {
+          board.value = Array(9).fill('');
+          currentPlayer.value = 'X';
+          gameStatus.value = 'Ваш ход: X';
+          isGameOver.value = false;
+          resetSubject.next(); // Сигнал на сброс игры
+        }
+
+        cellClick$
+          .pipe(takeUntil(resetSubject)) // Обнуляем поле сброса игры
+          .subscribe(index => makeMove(index));
+
+        // Этот метод вызывается при клике на клетку
+        const cellClicked = (index) => {
+          console.log('clicked');
+          cellClick$.next(index);
+        }
+
+        return {
+          board,
+          gameStatus,
+          resetGame,
+          cellClicked,
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+
+</html>
